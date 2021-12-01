@@ -1,0 +1,129 @@
+--------------------------------------------------------------------------
+A process has executed an operation involving a call to the
+"fork()" system call to create a child process.  Open MPI is currently
+operating in a condition that could result in memory corruption or
+other system errors; your job may hang, crash, or produce silent
+data corruption.  The use of fork() (or system() or other calls that
+create child processes) is strongly discouraged.
+
+The process that invoked fork was:
+
+  Local host:          [[46651,1],0] (PID 32451)
+
+If you are *absolutely sure* that your application will successfully
+and correctly survive a call to fork(), you may disable this warning
+by setting the mpi_warn_on_fork MCA parameter to 0.
+--------------------------------------------------------------------------
+[vx01.sciclone.wm.edu:32446] 13 more processes have sent help message help-opal-runtime.txt / opal_init:warn-fork
+[vx01.sciclone.wm.edu:32446] Set MCA parameter "orte_base_help_aggregate" to 0 to see all help / error messages
+On WorkerInfo(id=3, name=observer3):
+AttributeError("'list' object has no attribute 'local_value'")
+Traceback (most recent call last):
+  File "/sciclone/home20/hmbaier/.local/vortex/anaconda3-2021.05/lib/python3.8/site-packages/torch/distributed/rpc/internal.py", line 204, in _run_function
+    result = python_udf.func(*python_udf.args, **python_udf.kwargs)
+  File "/sciclone/home20/hmbaier/test_rpc/dist_autograd_dhs.py", line 47, in _call_method
+    return method(rref.local_value(), *args, **kwargs)
+AttributeError: 'list' object has no attribute 'local_value'
+
+On WorkerInfo(id=2, name=observer2):
+AttributeError("'list' object has no attribute 'local_value'")
+Traceback (most recent call last):
+  File "/sciclone/home20/hmbaier/.local/vortex/anaconda3-2021.05/lib/python3.8/site-packages/torch/distributed/rpc/internal.py", line 204, in _run_function
+    result = python_udf.func(*python_udf.args, **python_udf.kwargs)
+  File "/sciclone/home20/hmbaier/test_rpc/dist_autograd_dhs.py", line 47, in _call_method
+    return method(rref.local_value(), *args, **kwargs)
+AttributeError: 'list' object has no attribute 'local_value'
+
+On WorkerInfo(id=1, name=observer1):
+AttributeError("'list' object has no attribute 'local_value'")
+Traceback (most recent call last):
+  File "/sciclone/home20/hmbaier/.local/vortex/anaconda3-2021.05/lib/python3.8/site-packages/torch/distributed/rpc/internal.py", line 204, in _run_function
+    result = python_udf.func(*python_udf.args, **python_udf.kwargs)
+  File "/sciclone/home20/hmbaier/test_rpc/dist_autograd_dhs.py", line 47, in _call_method
+    return method(rref.local_value(), *args, **kwargs)
+AttributeError: 'list' object has no attribute 'local_value'
+
+[vx01.sciclone.wm.edu:32446] 1 more process has sent help message help-opal-runtime.txt / opal_init:warn-fork
+On WorkerInfo(id=2, name=observer2):
+AttributeError("'list' object has no attribute 'local_value'")
+Traceback (most recent call last):
+  File "/sciclone/home20/hmbaier/.local/vortex/anaconda3-2021.05/lib/python3.8/site-packages/torch/distributed/rpc/internal.py", line 204, in _run_function
+    result = python_udf.func(*python_udf.args, **python_udf.kwargs)
+  File "/sciclone/home20/hmbaier/test_rpc/dist_autograd_dhs.py", line 47, in _call_method
+    return method(rref.local_value(), *args, **kwargs)
+AttributeError: 'list' object has no attribute 'local_value'
+
+On WorkerInfo(id=3, name=observer3):
+AttributeError("'list' object has no attribute 'local_value'")
+Traceback (most recent call last):
+  File "/sciclone/home20/hmbaier/.local/vortex/anaconda3-2021.05/lib/python3.8/site-packages/torch/distributed/rpc/internal.py", line 204, in _run_function
+    result = python_udf.func(*python_udf.args, **python_udf.kwargs)
+  File "/sciclone/home20/hmbaier/test_rpc/dist_autograd_dhs.py", line 47, in _call_method
+    return method(rref.local_value(), *args, **kwargs)
+AttributeError: 'list' object has no attribute 'local_value'
+
+On WorkerInfo(id=1, name=observer1):
+AttributeError("'list' object has no attribute 'local_value'")
+Traceback (most recent call last):
+  File "/sciclone/home20/hmbaier/.local/vortex/anaconda3-2021.05/lib/python3.8/site-packages/torch/distributed/rpc/internal.py", line 204, in _run_function
+    result = python_udf.func(*python_udf.args, **python_udf.kwargs)
+  File "/sciclone/home20/hmbaier/test_rpc/dist_autograd_dhs.py", line 47, in _call_method
+    return method(rref.local_value(), *args, **kwargs)
+AttributeError: 'list' object has no attribute 'local_value'
+
+On WorkerInfo(id=3, name=observer3):
+AttributeError("'list' object has no attribute 'local_value'")
+Traceback (most recent call last):
+  File "/sciclone/home20/hmbaier/.local/vortex/anaconda3-2021.05/lib/python3.8/site-packages/torch/distributed/rpc/internal.py", line 204, in _run_function
+    result = python_udf.func(*python_udf.args, **python_udf.kwargs)
+  File "/sciclone/home20/hmbaier/test_rpc/dist_autograd_dhs.py", line 47, in _call_method
+    return method(rref.local_value(), *args, **kwargs)
+AttributeError: 'list' object has no attribute 'local_value'
+
+On WorkerInfo(id=2, name=observer2):
+AttributeError("'list' object has no attribute 'local_value'")
+Traceback (most recent call last):
+  File "/sciclone/home20/hmbaier/.local/vortex/anaconda3-2021.05/lib/python3.8/site-packages/torch/distributed/rpc/internal.py", line 204, in _run_function
+    result = python_udf.func(*python_udf.args, **python_udf.kwargs)
+  File "/sciclone/home20/hmbaier/test_rpc/dist_autograd_dhs.py", line 47, in _call_method
+    return method(rref.local_value(), *args, **kwargs)
+AttributeError: 'list' object has no attribute 'local_value'
+
+On WorkerInfo(id=1, name=observer1):
+AttributeError("'list' object has no attribute 'local_value'")
+Traceback (most recent call last):
+  File "/sciclone/home20/hmbaier/.local/vortex/anaconda3-2021.05/lib/python3.8/site-packages/torch/distributed/rpc/internal.py", line 204, in _run_function
+    result = python_udf.func(*python_udf.args, **python_udf.kwargs)
+  File "/sciclone/home20/hmbaier/test_rpc/dist_autograd_dhs.py", line 47, in _call_method
+    return method(rref.local_value(), *args, **kwargs)
+AttributeError: 'list' object has no attribute 'local_value'
+
+[vx01.sciclone.wm.edu:32446] 5 more processes have sent help message help-opal-runtime.txt / opal_init:warn-fork
+On WorkerInfo(id=1, name=observer1):
+AttributeError("'list' object has no attribute 'local_value'")
+Traceback (most recent call last):
+  File "/sciclone/home20/hmbaier/.local/vortex/anaconda3-2021.05/lib/python3.8/site-packages/torch/distributed/rpc/internal.py", line 204, in _run_function
+    result = python_udf.func(*python_udf.args, **python_udf.kwargs)
+  File "/sciclone/home20/hmbaier/test_rpc/dist_autograd_dhs.py", line 47, in _call_method
+    return method(rref.local_value(), *args, **kwargs)
+AttributeError: 'list' object has no attribute 'local_value'
+
+On WorkerInfo(id=3, name=observer3):
+AttributeError("'list' object has no attribute 'local_value'")
+Traceback (most recent call last):
+  File "/sciclone/home20/hmbaier/.local/vortex/anaconda3-2021.05/lib/python3.8/site-packages/torch/distributed/rpc/internal.py", line 204, in _run_function
+    result = python_udf.func(*python_udf.args, **python_udf.kwargs)
+  File "/sciclone/home20/hmbaier/test_rpc/dist_autograd_dhs.py", line 47, in _call_method
+    return method(rref.local_value(), *args, **kwargs)
+AttributeError: 'list' object has no attribute 'local_value'
+
+On WorkerInfo(id=2, name=observer2):
+AttributeError("'list' object has no attribute 'local_value'")
+Traceback (most recent call last):
+  File "/sciclone/home20/hmbaier/.local/vortex/anaconda3-2021.05/lib/python3.8/site-packages/torch/distributed/rpc/internal.py", line 204, in _run_function
+    result = python_udf.func(*python_udf.args, **python_udf.kwargs)
+  File "/sciclone/home20/hmbaier/test_rpc/dist_autograd_dhs.py", line 47, in _call_method
+    return method(rref.local_value(), *args, **kwargs)
+AttributeError: 'list' object has no attribute 'local_value'
+
+Terminated

@@ -1,0 +1,150 @@
+--------------------------------------------------------------------------
+A process has executed an operation involving a call to the
+"fork()" system call to create a child process.  Open MPI is currently
+operating in a condition that could result in memory corruption or
+other system errors; your job may hang, crash, or produce silent
+data corruption.  The use of fork() (or system() or other calls that
+create child processes) is strongly discouraged.
+
+The process that invoked fork was:
+
+  Local host:          [[35978,1],0] (PID 17428)
+
+If you are *absolutely sure* that your application will successfully
+and correctly survive a call to fork(), you may disable this warning
+by setting the mpi_warn_on_fork MCA parameter to 0.
+--------------------------------------------------------------------------
+[vx01.sciclone.wm.edu:17423] 3 more processes have sent help message help-opal-runtime.txt / opal_init:warn-fork
+[vx01.sciclone.wm.edu:17423] Set MCA parameter "orte_base_help_aggregate" to 0 to see all help / error messages
+[vx01.sciclone.wm.edu:17423] 12 more processes have sent help message help-opal-runtime.txt / opal_init:warn-fork
+Traceback (most recent call last):
+  File "/sciclone/home20/hmbaier/test_rpc/dist_autograd_dhs.py", line 410, in <module>
+    main()
+  File "/sciclone/home20/hmbaier/test_rpc/dist_autograd_dhs.py", line 398, in main
+    mp.spawn(
+  File "/sciclone/home20/hmbaier/.local/vortex/anaconda3-2021.05/lib/python3.8/site-packages/torch/multiprocessing/spawn.py", line 230, in spawn
+    return start_processes(fn, args, nprocs, join, daemon, start_method='spawn')
+  File "/sciclone/home20/hmbaier/.local/vortex/anaconda3-2021.05/lib/python3.8/site-packages/torch/multiprocessing/spawn.py", line 188, in start_processes
+    while not context.join():
+  File "/sciclone/home20/hmbaier/.local/vortex/anaconda3-2021.05/lib/python3.8/site-packages/torch/multiprocessing/spawn.py", line 150, in join
+    raise ProcessRaisedException(msg, error_index, failed_process.pid)
+torch.multiprocessing.spawn.ProcessRaisedException: 
+
+-- Process 0 terminated with the following error:
+Traceback (most recent call last):
+  File "/sciclone/home20/hmbaier/.local/vortex/anaconda3-2021.05/lib/python3.8/site-packages/torch/multiprocessing/spawn.py", line 59, in _wrap
+    fn(i, *args)
+  File "/sciclone/home20/hmbaier/test_rpc/dist_autograd_dhs.py", line 332, in run_worker
+    rpc.init_rpc(AGENT_NAME, rank = rank, world_size = world_size)
+  File "/sciclone/home20/hmbaier/.local/vortex/anaconda3-2021.05/lib/python3.8/site-packages/torch/distributed/rpc/__init__.py", line 177, in init_rpc
+    store, _, _ = next(rendezvous_iterator)
+  File "/sciclone/home20/hmbaier/.local/vortex/anaconda3-2021.05/lib/python3.8/site-packages/torch/distributed/rendezvous.py", line 229, in _env_rendezvous_handler
+    store = _create_c10d_store(master_addr, master_port, rank, world_size, timeout)
+  File "/sciclone/home20/hmbaier/.local/vortex/anaconda3-2021.05/lib/python3.8/site-packages/torch/distributed/rendezvous.py", line 157, in _create_c10d_store
+    return TCPStore(
+RuntimeError: Address already in use
+
+Traceback (most recent call last):
+  File "/sciclone/home20/hmbaier/test_rpc/dist_autograd_dhs.py", line 410, in <module>
+    main()
+  File "/sciclone/home20/hmbaier/test_rpc/dist_autograd_dhs.py", line 398, in main
+    mp.spawn(
+  File "/sciclone/home20/hmbaier/.local/vortex/anaconda3-2021.05/lib/python3.8/site-packages/torch/multiprocessing/spawn.py", line 230, in spawn
+    return start_processes(fn, args, nprocs, join, daemon, start_method='spawn')
+  File "/sciclone/home20/hmbaier/.local/vortex/anaconda3-2021.05/lib/python3.8/site-packages/torch/multiprocessing/spawn.py", line 188, in start_processes
+    while not context.join():
+  File "/sciclone/home20/hmbaier/.local/vortex/anaconda3-2021.05/lib/python3.8/site-packages/torch/multiprocessing/spawn.py", line 150, in join
+    raise ProcessRaisedException(msg, error_index, failed_process.pid)
+torch.multiprocessing.spawn.ProcessRaisedException: 
+
+-- Process 0 terminated with the following error:
+Traceback (most recent call last):
+  File "/sciclone/home20/hmbaier/.local/vortex/anaconda3-2021.05/lib/python3.8/site-packages/torch/multiprocessing/spawn.py", line 59, in _wrap
+    fn(i, *args)
+  File "/sciclone/home20/hmbaier/test_rpc/dist_autograd_dhs.py", line 332, in run_worker
+    rpc.init_rpc(AGENT_NAME, rank = rank, world_size = world_size)
+  File "/sciclone/home20/hmbaier/.local/vortex/anaconda3-2021.05/lib/python3.8/site-packages/torch/distributed/rpc/__init__.py", line 177, in init_rpc
+    store, _, _ = next(rendezvous_iterator)
+  File "/sciclone/home20/hmbaier/.local/vortex/anaconda3-2021.05/lib/python3.8/site-packages/torch/distributed/rendezvous.py", line 229, in _env_rendezvous_handler
+    store = _create_c10d_store(master_addr, master_port, rank, world_size, timeout)
+  File "/sciclone/home20/hmbaier/.local/vortex/anaconda3-2021.05/lib/python3.8/site-packages/torch/distributed/rendezvous.py", line 157, in _create_c10d_store
+    return TCPStore(
+RuntimeError: Address already in use
+
+Traceback (most recent call last):
+  File "/sciclone/home20/hmbaier/test_rpc/dist_autograd_dhs.py", line 410, in <module>
+    main()
+  File "/sciclone/home20/hmbaier/test_rpc/dist_autograd_dhs.py", line 398, in main
+    mp.spawn(
+  File "/sciclone/home20/hmbaier/.local/vortex/anaconda3-2021.05/lib/python3.8/site-packages/torch/multiprocessing/spawn.py", line 230, in spawn
+    return start_processes(fn, args, nprocs, join, daemon, start_method='spawn')
+  File "/sciclone/home20/hmbaier/.local/vortex/anaconda3-2021.05/lib/python3.8/site-packages/torch/multiprocessing/spawn.py", line 188, in start_processes
+    while not context.join():
+  File "/sciclone/home20/hmbaier/.local/vortex/anaconda3-2021.05/lib/python3.8/site-packages/torch/multiprocessing/spawn.py", line 150, in join
+    raise ProcessRaisedException(msg, error_index, failed_process.pid)
+torch.multiprocessing.spawn.ProcessRaisedException: 
+
+-- Process 1 terminated with the following error:
+Traceback (most recent call last):
+  File "/sciclone/home20/hmbaier/.local/vortex/anaconda3-2021.05/lib/python3.8/site-packages/torch/multiprocessing/spawn.py", line 59, in _wrap
+    fn(i, *args)
+  File "/sciclone/home20/hmbaier/test_rpc/dist_autograd_dhs.py", line 379, in run_worker
+    rpc.init_rpc(OBSERVER_NAME.format(rank), rank = rank, world_size = world_size)
+  File "/sciclone/home20/hmbaier/.local/vortex/anaconda3-2021.05/lib/python3.8/site-packages/torch/distributed/rpc/__init__.py", line 195, in init_rpc
+    _init_rpc_backend(backend, store, name, rank, world_size, rpc_backend_options)
+  File "/sciclone/home20/hmbaier/.local/vortex/anaconda3-2021.05/lib/python3.8/site-packages/torch/distributed/rpc/__init__.py", line 229, in _init_rpc_backend
+    rpc_agent = backend_registry.init_backend(
+  File "/sciclone/home20/hmbaier/.local/vortex/anaconda3-2021.05/lib/python3.8/site-packages/torch/distributed/rpc/backend_registry.py", line 106, in init_backend
+    return backend.value.init_backend_handler(*args, **kwargs)
+  File "/sciclone/home20/hmbaier/.local/vortex/anaconda3-2021.05/lib/python3.8/site-packages/torch/distributed/rpc/backend_registry.py", line 276, in _tensorpipe_init_backend_handler
+    group = _init_process_group(store, rank, world_size)
+  File "/sciclone/home20/hmbaier/.local/vortex/anaconda3-2021.05/lib/python3.8/site-packages/torch/distributed/rpc/backend_registry.py", line 114, in _init_process_group
+    group = dist.ProcessGroupGloo(store, rank, world_size, process_group_timeout)
+RuntimeError: [../third_party/gloo/gloo/transport/tcp/pair.cc:799] connect [128.239.56.64]:13205: Connection refused
+
+--------------------------------------------------------------------------
+A system call failed during shared memory initialization that should
+not have.  It is likely that your MPI job will now either abort or
+experience performance degradation.
+
+  Local host:  vx02.sciclone.wm.edu
+  System call: unlink(2) /dev/shm/vader_segment.vx02.8c8a0001.0
+  Error:       No such file or directory (errno 2)
+--------------------------------------------------------------------------
+[vx02:24948] *** Process received signal ***
+[vx02:24948] Signal: Segmentation fault (11)
+[vx02:24948] Signal code: Address not mapped (1)
+[vx02:24948] Failing at address: 0xc0
+[vx02:24948] [ 0] /lib64/libpthread.so.0(+0xf630)[0x2b145245e630]
+[vx02:24948] [ 1] /usr/local/seoul/linux-centos7-piledriver/gcc-9.3.0/openmpi-3.1.4-jbsu/lib/libopen-rte.so.40(+0x597f0)[0x2b14502307f0]
+[vx02:24948] [ 2] /usr/local/seoul/linux-centos7-piledriver/gcc-9.3.0/openmpi-3.1.4-jbsu/lib/libopen-pal.so.40(opal_libevent2022_event_base_loop+0x5ef)[0x2b1450f1767f]
+[vx02:24948] [ 3] /usr/local/seoul/linux-centos7-piledriver/gcc-9.3.0/openmpi-3.1.4-jbsu/lib/libopen-rte.so.40(orte_daemon+0x14e5)[0x2b145021ee4d]
+[vx02:24948] [ 4] orted[0x40086b]
+[vx02:24948] [ 5] /lib64/libc.so.6(__libc_start_main+0xf5)[0x2b1452691555]
+[vx02:24948] [ 6] orted[0x4008a6]
+[vx02:24948] *** End of error message ***
+--------------------------------------------------------------------------
+ORTE has lost communication with a remote daemon.
+
+  HNP daemon   : [[35978,0],0] on node vx01
+  Remote daemon: [[35978,0],1] on node vx02
+
+This is usually due to either a failure of the TCP network
+connection to the node, or possibly an internal failure of
+the daemon itself. We cannot recover from this failure, and
+therefore will terminate the job.
+--------------------------------------------------------------------------
+[vx01:17423] *** Process received signal ***
+[vx01:17423] Signal: Segmentation fault (11)
+[vx01:17423] Signal code: Address not mapped (1)
+[vx01:17423] Failing at address: 0x2ad9fffffff0
+[vx01:17423] [ 0] /lib64/libpthread.so.0(+0xf630)[0x2ad9815ca630]
+[vx01:17423] [ 1] /lib64/libc.so.6(+0x13fd20)[0x2ad98191ad20]
+[vx01:17423] [ 2] /usr/local/seoul/linux-centos7-piledriver/gcc-9.3.0/openmpi-3.1.4-jbsu/lib/libopen-pal.so.40(pmix_ptl_base_lost_connection+0x106)[0x2ad980162586]
+[vx01:17423] [ 3] /usr/local/seoul/linux-centos7-piledriver/gcc-9.3.0/openmpi-3.1.4-jbsu/lib/libopen-pal.so.40(pmix_ptl_base_recv_handler+0x2fa)[0x2ad980164542]
+[vx01:17423] [ 4] /usr/local/seoul/linux-centos7-piledriver/gcc-9.3.0/openmpi-3.1.4-jbsu/lib/libopen-pal.so.40(opal_libevent2022_event_base_loop+0x8cc)[0x2ad98008395c]
+[vx01:17423] [ 5] /usr/local/seoul/linux-centos7-piledriver/gcc-9.3.0/openmpi-3.1.4-jbsu/lib/libopen-pal.so.40(+0x1774ce)[0x2ad98012a4ce]
+[vx01:17423] [ 6] /lib64/libpthread.so.0(+0x7ea5)[0x2ad9815c2ea5]
+[vx01:17423] [ 7] /lib64/libc.so.6(clone+0x6d)[0x2ad9818d99fd]
+[vx01:17423] *** End of error message ***
+Segmentation fault (core dumped)

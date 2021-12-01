@@ -1,0 +1,17 @@
+#!/bin/tcsh
+#PBS -N test_rpc
+#PBS -l nodes=4:vortex:ppn=1
+#PBS -l walltime=1:00:00
+
+# init conda within new shell for job
+source "/usr/local/anaconda3-2021.05/etc/profile.d/conda.csh"
+
+module load anaconda3/2021.05
+module load openmpi/3.1.4/gcc-9.3.0
+
+unsetenv PYTHONPATH
+
+conda activate /sciclone/home20/hmbaier/claw/dhsrl
+
+mpiexec -n 4 python /sciclone/home20/hmbaier/test_rpc/dist_autograd_dhs.py
+

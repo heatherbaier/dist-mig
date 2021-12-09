@@ -206,14 +206,14 @@ class Observer:
                 # 2) Send that information to the Agent and make it calculate the reward
                 # 3) Send the new prediction back to the environment so she can update its information
                 if action == 4:
-                    print("ACTION IN OBSERVER ", self.id, " IS ", action)
+                    # print("ACTION IN OBSERVER ", self.id, " IS ", action)
                     new_state, gv, y_val, prev_pred = env.select()
-                    new_pred = _remote_method(Agent.calculate_reward, agent_rref, self.id, action, None, new_state, gv, y_val, prev_pred)
-                    done = env.end_select(new_pred)
+                    new_pred, fc_layer = _remote_method(Agent.calculate_reward, agent_rref, self.id, action, None, new_state, gv, y_val, prev_pred)
+                    done = env.end_select(new_pred, fc_layer)
 
                     # If the agent is done, break the training
                     if done:
-                        print("AGENT IS DONE: ", self.id)
+                        # print("AGENT IS DONE: ", self.id)
                         break
                 
                 # If the action is just a move...
@@ -238,13 +238,18 @@ class Agent:
         self.saved_log_probs = {}
         self.n_actions = 5
         self.policy = Policy(128, 128, self.n_actions)
-        self.optimizer = optim.Adam(self.policy.parameters(), lr=1e-2)
+        self.target_net = Policy(128, 128, self.n_actions)
+        self.optimizer = optim.Adam(self.policy.parameters(), lr = 1e-2)
+        self.criterion = nn.L1Loss()
         self.eps = np.finfo(np.float32).eps.item()
         self.running_reward = 0
         self.reward_threshold = gym.make('CartPole-v1').spec.reward_threshold
         self.config = config
         self.steps_done = 0
         self.eps_threshold = .9
+        self.memory = []
+        self.limit = 1000
+        self.to_tens = transforms.ToTensor()
 
         # self.config, _ = get_config()
 
@@ -314,6 +319,8 @@ class Agent:
 
 
         train_dl = data.train_data
+        self.batch_size = data.batch_size
+        self.GAMMA = data.gamma
 
         print("Done with loading data!")
 
@@ -377,7 +384,22 @@ class Agent:
                 _, mig_pred, fc_layer = self.policy(new_state, seq = None, select = True)
             else:
                 seq = torch.cat(gv, dim = 1)
-                _, mig_pred, fc_layer = self.policy(new_state, seq = seq, select = True)      
+                _, mig_pred, fc_layer = self.policy(new_state, seq = seq, select = True)    
+
+            try:
+                # print("OPTIMIZING PRED! ", mig_pred)
+                # print(mig_pred.shape, y_val.shape)
+                mig_loss = self.criterion(mig_pred.squeeze(), y_val)
+                # print("MIG LOSS: ", mig_loss)
+                self.optimizer.zero_grad()
+                mig_loss.backward()
+                self.optimizer.step()
+            except:
+                pass
+
+            # self.optimize_pred(mig_pred, y_val)
+
+            print("MIG PRED: ", mig_pred)
 
             # If the sequence prediction is better with the new state than without, give the model a thumbs up
             if abs(y_val - prev_pred) > abs(y_val - mig_pred):
@@ -386,7 +408,7 @@ class Agent:
                 reward = 0
 
             # Send the new prediction back to the observer for its own records
-            return mig_pred
+            return mig_pred, fc_layer
 
         # Move
         else:
@@ -409,7 +431,19 @@ class Agent:
             if abs(y_val - mig_pred_t1) > abs(y_val - mig_pred_t2):
                 reward = 10
             else:
-                reward = 0        
+                reward = 0       
+
+            memory = (old_state, action, new_state, torch.tensor([reward])) 
+            self.memory.append(memory)
+
+
+    # def optimize_pred(self, mig_pred, y_val):
+    #     print("OPTIMIZING PRED!")
+    #     mig_loss = self.criterion(mig_pred.squeeze(0), y_val)
+    #     print("MIG LOSS: ", mig_loss)
+    #     self.optimizer.zero_grad()
+    #     mig_loss.backward()
+    #     self.optimizer.step()
 
 
     def report_reward(self, ob_id, reward):
@@ -442,6 +476,59 @@ class Agent:
         # Wait until all observers have finished this episode
         for fut in futs:
             fut.wait()
+
+
+    def optimize_model(self):
+
+        if len(self.memory) < self.batch_size:
+            print("RETURNING BECAUSE TOO FEW MEMORY")
+            return
+
+        if len(self.memory) == self.limit:
+            self.memory.pop(0)
+
+        transitions = random.sample(list(self.memory), self.batch_size)
+
+        # Transpose the batch (see https://stackoverflow.com/a/19343/3343043 for
+        # detailed explanation). This converts batch-array of Transitions
+        # to Transition of batch-arrays.
+        batch = Transition(*zip(*transitions))
+
+        # Compute a mask of non-final states and concatenate the batch elements
+        # (a final state would've been the one after which simulation ended)
+        non_final_mask = torch.tensor(tuple(map(lambda s: s is not None, batch.next_state)), dtype=torch.bool)
+        non_final_next_states = torch.cat([s for s in batch.next_state if s is not None])
+                                                    
+        state_batch = torch.cat(batch.state)
+        action_batch = torch.cat(batch.action)
+        reward_batch = torch.cat(batch.reward)
+
+        # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
+        # columns of actions taken. These are the actions which would've been taken
+        # for each batch state according to shared_model
+        pnet_val, _ = self.policy(state_batch)
+
+        state_action_values = pnet_val.gather(1, action_batch)
+
+        # Compute V(s_{t+1}) for all next states.
+        # Expected values of actions for non_final_next_states are computed based
+        # on the "older" target_net; selecting their best reward with max(1)[0].
+        # This is merged based on the mask, such that we'll have either the expected
+        # state value or 0 in case the state was final.
+        next_state_values = torch.zeros(self.batch_size)
+        tnet_val, _ = self.target_net(non_final_next_states)
+        next_state_values[non_final_mask] = tnet_val.max(1)[0].detach()
+        
+        # Compute the expected Q values
+        expected_state_action_values = (next_state_values * self.GAMMA) + reward_batch
+
+        # Compute Huber loss
+        loss = self.criterion(state_action_values, expected_state_action_values.unsqueeze(1))
+
+        # Optimize the model
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
 
 
     def finish_episode(self):
@@ -515,7 +602,7 @@ def run_worker(rank, world_size):
         agent = Agent(world_size, config)
 
         # i_episode? I think this is equivalent to epochs
-        for i_episode in range(1):
+        for i_episode in range(20):
 
             print("EPISODE: ", i_episode)
 
@@ -525,6 +612,10 @@ def run_worker(rank, world_size):
 
             # Run epsiode is basically 1 call of 'train'
             agent.run_episode(n_steps = n_steps)
+
+            print("ABOUT TO OPTIMIZE!")
+
+            agent.optimize_model()
 
         #     last_reward = agent.finish_episode()
 

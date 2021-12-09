@@ -51,7 +51,7 @@ class EarthObs(Env):
         self.max_grabs = 5
 
         # Image & model status specifics
-        self.y_val = torch.tensor([[y_val]])
+        self.y_val = torch.tensor(y_val)
         self.error = 0
         self.mig_pred = 0
 
@@ -296,18 +296,19 @@ class EarthObs(Env):
         Function for action == 4 // SELECT
         """
         self.grabs_left -= 1
-        print("GRABS LEFT: ", self.grabs_left)
+        # print("GRABS LEFT: ", self.grabs_left)
         return [self.to_tens(self.view_box.clip_image(self.image)).unsqueeze(0), self.grab_vectors, self.y_val, self.mig_pred]
 
 
 
-    def end_select(self, new_pred):
+    def end_select(self, new_pred, fc_layer):
         
         """
         Return the done flag
         """
 
         self.mig_pred = new_pred.item()
+        self.grab_vectors.append(fc_layer.detach())
 
         # If there are no grabs left, update the canvas with this steps results, set the done flag to True & return 
         if self.grabs_left == 0:

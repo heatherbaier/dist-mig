@@ -54,7 +54,7 @@ class Dataset():
         print("IN DATALOADER'S LOAD DATA FUNCTION!")
 
         # Load in and prep all of the data
-        for impath in os.listdir(self.imagery_dir)[8:21]:
+        for impath in os.listdir(self.imagery_dir)[8:33]:
 
             self.data.append((os.path.join(self.imagery_dir, impath), 
                              self.ys[impath.replace(".png", "")], 

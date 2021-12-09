@@ -3,13 +3,13 @@
 **Single Node Distributed:** job8  
 **Multi-Node Distributed:** Steps to to:
 
-**Step1:** Launch an interactive job on each mchine using:
+**Step1:** Launch an interactive job on EVERY machine using:
 
 ```
 qsub -I -l walltime=1:00:00 -l nodes=1:ppn=2
 ```
 
-**Step 2:** Then, in the terminal for the checked out machine, run:
+**Step 2:** Then, in the terminal for EVERY checked out machine, run:
 
 ```
 source "/usr/local/anaconda3-2021.05/etc/profile.d/conda.csh"

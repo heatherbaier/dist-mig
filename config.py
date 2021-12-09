@@ -45,6 +45,17 @@ env_args.add_argument("--n_actions",
                       help = "How many actions the RL agent can choose from / output size of linear layer")
 
 
+# data_args = add_argument_group("Data Arguments")
+# data_args.add_argument("--imagery_dir",
+#                       type = str,
+#                       default = "/sciclone/scr-mlt/hmbaier/claw/imagery/",
+#                       help = "Full path to directory containing imagery")
+# data_args.add_argument("--json_path",
+#                       type = str,
+#                       default = "/sciclone/scr-mlt/hmbaier/claw/migration_data.json",
+#                       help = "Full path to json containing muni_id -> num_migrants mapping.")
+
+
 data_args = add_argument_group("Data Arguments")
 data_args.add_argument("--imagery_dir",
                       type = str,
@@ -56,6 +67,10 @@ data_args.add_argument("--json_path",
                       help = "Full path to json containing muni_id -> num_migrants mapping.")
 
 
+
 def get_config():
     config, unparsed = parser.parse_known_args()
     return config, unparsed
+
+
+

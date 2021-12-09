@@ -12,7 +12,7 @@ from ViewBox import *
 class Dataset():
 
     def __init__(self, 
-                 batch_size, 
+                 world_size, 
                  num_workers,
                  imagery_dir, 
                  json_path, 
@@ -23,7 +23,9 @@ class Dataset():
                  eps_decay = 200,
                  target_update = 10):
 
-        self.batch_size = batch_size
+        print("In dataloader!!")
+
+        self.world_size = world_size
         self.num_workers = num_workers
         self.imagery_dir = imagery_dir
         self.split = split
@@ -37,43 +39,34 @@ class Dataset():
         with open(json_path, "r") as f:
             self.ys = json.load(f)
 
+        print("Migration JSON has been loaded!")
+
         self.data = []
         self.to_tens = transforms.ToTensor()
         self.load_data()
+        print("Done loading data in DL!!")
         self.train_val_split()
+        print("Done train splitting data in DL!!")
 
 
     def load_data(self):
 
         print("IN DATALOADER'S LOAD DATA FUNCTION!")
 
-        for impath in os.listdir(self.imagery_dir)[5:8]:
-
-            # Load in and prep all of the data
-            # im = cv2.imread(os.path.join(self.imagery_dir, impath))
-
-            # print(self.ys[impath.replace(".png", "")])
+        # Load in and prep all of the data
+        for impath in os.listdir(self.imagery_dir)[8:21]:
 
             self.data.append((os.path.join(self.imagery_dir, impath), 
                              self.ys[impath.replace(".png", "")], 
-                             [3,5,False,self.batch_size, self.gamma,self.eps_start,self.eps_end,self.eps_decay,self.target_update]
-
-                            #  EarthObs(impath = os.path.join(self.imagery_dir, impath), 
-                            #           y_val = self.ys[impath.replace(".png", "")], 
-                            #           num_channels = 3, 
-                            #           num_actions = 5, 
-                            #           display = False, 
-                            #         #   valid = self.valid,
-                            #           batch_size = self.batch_size, 
-                            #           GAMMA = self.gamma,
-                            #           EPS_START = self.eps_start,
-                            #           EPS_END = self.eps_end,
-                            #           EPS_DECAY = self.eps_decay,
-                            #           TARGET_UPDATE = self.target_update)
-                                      
+                             [3, 5, False, self.gamma, self.eps_start, self.eps_end, self.eps_decay, self.target_update]
                                       ))
 
     def train_val_split(self):
+
+        self.batch_size = int(len(self.data) / (self.world_size - 1))
+
+        print("LENGTH OF DATA: ", len(self.data))
+        print("BATCH SIZE: ", self.batch_size)
 
         train_num = int(len(self.data) * self.split)
         train_indices = random.sample(range(len(self.data)), train_num)

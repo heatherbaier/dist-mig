@@ -1,4 +1,4 @@
-from mpi4py import MPI
+# from mpi4py import MPI
 
 from torchvision import models, transforms
 from collections import namedtuple, deque
@@ -27,7 +27,7 @@ class EarthObs(Env):
                 num_channels, 
                 num_actions, 
                 display = False, 
-                batch_size = 4,
+                # batch_size = 4,
                 GAMMA = 0.999,
                 EPS_START = .9,
                 EPS_END = 0.05,
@@ -62,7 +62,7 @@ class EarthObs(Env):
         self.device = "cpu"
         self.eps_threshold = EPS_START
         self.epoch = 0
-        self.batch_size = batch_size
+        # self.batch_size = batch_size
         self.GAMMA = GAMMA
         self.EPS_START = EPS_START
         self.EPS_END = EPS_END
@@ -76,7 +76,7 @@ class EarthObs(Env):
         self.target_net = DQN(128, 128, self.n_actions).to(self.device)
         self.target_net.eval()
 
-        self.comm = MPI.COMM_WORLD
+        # self.comm = MPI.COMM_WORLD
 
         self.load_image()
 
@@ -291,128 +291,159 @@ class EarthObs(Env):
         cv2.destroyAllWindows()
 
 
-    def step(self, action, shared_model, optimizer, epoch_preds, valid):
+    def select(self):
+        """
+        Function for action == 4 // SELECT
+        """
+        self.grabs_left -= 1
+        print("GRABS LEFT: ", self.grabs_left)
+        return [self.to_tens(self.view_box.clip_image(self.image)).unsqueeze(0), self.grab_vectors, self.y_val, self.mig_pred]
+
+
+
+    def end_select(self, new_pred):
+        
+        """
+        Return the done flag
+        """
+
+        self.mig_pred = new_pred.item()
+
+        # If there are no grabs left, update the canvas with this steps results, set the done flag to True & return 
+        if self.grabs_left == 0:
+            return True
+
+        else:
+            self.first_grab = False
+            return False
+
+    def move_box(self, action):
+
+        """
+        Move the view box according to the action dictated by the agent
+        """
+
+        self.view_box.move_box(action)
+        return [self.to_tens(self.view_box.clip_image(self.image)).unsqueeze(0), self.grab_vectors, self.y_val]
+
+
+    # def step(self, action, shared_model, optimizer, epoch_preds, valid):
+
+    def step(self, action):
 
         """
         Function to handle what happens each time the agent makes a move
         """
 
+        print("ACTION SPACE: ", self.action_space)
+
         # Assert that the action is valid
-        assert self.action_space.contains(action), "Invalid Action"
+        # assert self.action_space.contains(action), "Invalid Action"
 
         # Flag that marks the termination of an episode
         done = False        
 
-        # If the action is a select...
-        if action == 4:
+        # # If the action is a select...
+        # if action == 4:
 
-            # Update the number of selects left
-            self.grabs_left -= 1
+        #     # Update the number of selects left
+        #     self.grabs_left -= 1
 
-            # Get the new screen and extract the landsat from that area
-            new_screen = self.to_tens(self.view_box.clip_image(self.image)).unsqueeze(0)
+        #     # Get the new screen and extract the landsat from that area
+        #     new_screen = self.to_tens(self.view_box.clip_image(self.image)).unsqueeze(0)
             
-            if len(self.grab_vectors) == 0:
-                _, mig_pred, fc_layer = shared_model(new_screen, seq = None, select = True)
-            else:
-                seq = torch.cat(self.grab_vectors, dim = 1)
-                _, mig_pred, fc_layer = shared_model(new_screen, seq = seq, select = True)
+        #     if len(self.grab_vectors) == 0:
+        #         _, mig_pred, fc_layer = shared_model(new_screen, seq = None, select = True)
+        #     else:
+        #         seq = torch.cat(self.grab_vectors, dim = 1)
+        #         _, mig_pred, fc_layer = shared_model(new_screen, seq = seq, select = True)
 
-            self.grab_vectors.append(fc_layer.detach())
+        #     self.grab_vectors.append(fc_layer.detach())
 
-            if not valid:
+        #     if not valid:
 
-                # Calculate the loss and ~optimize~
-                mig_loss = self.criterion(mig_pred.squeeze(0), self.y_val)
-                optimizer.zero_grad()
-                mig_loss.backward()
+        #         # Calculate the loss and ~optimize~
+        #         mig_loss = self.criterion(mig_pred.squeeze(0), self.y_val)
+        #         optimizer.zero_grad()
+        #         mig_loss.backward()
 
-                grads = {}
-                for n,param in shared_model.named_parameters():
-                    grads[n] = param.grad
+        #         optimizer.step() 
 
-                # self.comm.send({5:grads}, dest = 0)
+        #     # Save the previous prediction of the LSTM so we can use it to calculate the reward
+        #     prev_pred = self.mig_pred
 
-                # with open("/sciclone/home20/hmbaier/new/aGradLog.txt", "a") as f:
-                #     f.write("Sending grads from a Rank \n")   
+        #     # print("RNN MIG PRED: ", mig_pred, self.y_val)
 
-                optimizer.step() 
+        #     # Update the new error
+        #     self.error = mig_pred - self.y_val
 
-            # Save the previous prediction of the LSTM so we can use it to calculate the reward
-            prev_pred = self.mig_pred
+        #     # De-tensorize (lol words)
+        #     self.mig_pred = mig_pred.item()
 
-            # print("RNN MIG PRED: ", mig_pred, self.y_val)
+        #     # if self.display:
 
-            # Update the new error
-            self.error = mig_pred - self.y_val
-
-            # De-tensorize (lol words)
-            self.mig_pred = mig_pred.item()
-
-            # if self.display:
-
-            # Update the canvas, but draw the box as green since it was a select
-            self.draw_elements_on_canvas(red = False)
+        #     # Update the canvas, but draw the box as green since it was a select
+        #     self.draw_elements_on_canvas(red = False)
      
-            # If there are no grabs left, update the canvas with this steps results, set the done flag to True & return 
-            if self.grabs_left == 0:
+        #     # If there are no grabs left, update the canvas with this steps results, set the done flag to True & return 
+        #     if self.grabs_left == 0:
 
-                # if self.display:
-                self.draw_elements_on_canvas()
-                done = True
-                return [mig_pred,2,done,4,grads]
+        #         # if self.display:
+        #         self.draw_elements_on_canvas()
+        #         done = True
+        #         return [mig_pred,2,done,4,grads]
 
-            # If there are still more grabs left, calculate the reward and return not done
-            else:
+        #     # If there are still more grabs left, calculate the reward and return not done
+        #     else:
 
-                # print("OVERALL MIG PRED: ", self.mig_pred)
+        #         # print("OVERALL MIG PRED: ", self.mig_pred)
 
-                if abs(self.y_val - prev_pred) > abs(self.y_val - self.mig_pred):
-                    reward = 10
-                else:
-                    reward = 0
+        #         if abs(self.y_val - prev_pred) > abs(self.y_val - self.mig_pred):
+        #             reward = 10
+        #         else:
+        #             reward = 0
                 
-                self.first_grab = False
+        #         self.first_grab = False
 
-                return [mig_pred,2,done,4,grads]
+        #         return [mig_pred,2,done,4,grads]
                 
 
-        # If the action is just a simple move...
-        elif action != 4:
+        # # If the action is just a simple move...
+        # elif action != 4:
 
-            # Update total number of moves (not really important to acutal model training)
-            self.total_moves += 1
+        # Update total number of moves (not really important to acutal model training)
+        self.total_moves += 1
 
-            # Get the screen & the prediction for the current state before you take an action
-            current_screen = self.to_tens(self.view_box.clip_image(self.image)).unsqueeze(0)
+        # Get the screen & the prediction for the current state before you take an action
+        current_screen = self.to_tens(self.view_box.clip_image(self.image)).unsqueeze(0)
 
-            if len(self.grab_vectors) == 0:
-                _, mig_pred_t1 = shared_model(current_screen, seq = None)
-            else:
-                seq = torch.cat(self.grab_vectors, dim = 1)
-                _, mig_pred_t1 = shared_model(current_screen, seq = seq)
-            
-            # Now take the action and update the view_boxes position (and therefore our state)
-            self.view_box.move_box(action)
+        if len(self.grab_vectors) == 0:
+            _, mig_pred_t1 = shared_model(current_screen, seq = None)
+        else:
+            seq = torch.cat(self.grab_vectors, dim = 1)
+            _, mig_pred_t1 = shared_model(current_screen, seq = seq)
 
-            # if self.display:
+        # Now take the action and update the view_boxes position (and therefore our state)
+        self.view_box.move_box(action)
 
-            # Draw pretty
-            self.draw_elements_on_canvas()
+        # if self.display:
 
-            # Get the screen & the prediction for the current state before you take an action
-            new_screen = self.to_tens(self.view_box.clip_image(self.image)).unsqueeze(0)
+        # Draw pretty
+        self.draw_elements_on_canvas()
 
-            if len(self.grab_vectors) == 0:
-                _, mig_pred_t2 = shared_model(current_screen, seq = None)
-            else:
-                seq = torch.cat(self.grab_vectors, dim = 1)
-                _, mig_pred_t2 = shared_model(current_screen, seq = seq)
+        # Get the screen & the prediction for the current state before you take an action
+        new_screen = self.to_tens(self.view_box.clip_image(self.image)).unsqueeze(0)
 
-            # If the screen after the action was taken is closer to the true value than before, give the model a reward
-            if abs(self.y_val - mig_pred_t1) > abs(self.y_val - mig_pred_t2):
-                reward = 10
-            else:
-                reward = 0
+        if len(self.grab_vectors) == 0:
+            _, mig_pred_t2 = shared_model(current_screen, seq = None)
+        else:
+            seq = torch.cat(self.grab_vectors, dim = 1)
+            _, mig_pred_t2 = shared_model(current_screen, seq = seq)
 
-            return [self.to_tens(self.view_box.clip_image(self.image)).unsqueeze(0), reward, done, None]
+        # If the screen after the action was taken is closer to the true value than before, give the model a reward
+        if abs(self.y_val - mig_pred_t1) > abs(self.y_val - mig_pred_t2):
+            reward = 10
+        else:
+            reward = 0
+
+        return [self.to_tens(self.view_box.clip_image(self.image)).unsqueeze(0), reward, done, None]

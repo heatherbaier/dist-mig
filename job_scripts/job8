@@ -1,0 +1,12 @@
+#!/bin/tcsh
+#PBS -N test_meltemi
+#PBS -l nodes=1:meltemi:ppn=2
+#PBS -l walltime=1:00:00
+
+# init conda within new shell for job
+source "/usr/local/anaconda3-2021.05/etc/profile.d/conda.csh"
+module load anaconda3/2021.05
+unsetenv PYTHONPATH
+conda activate dhsrl4
+
+torchrun --standalone --nnodes=1 --nproc_per_node=2 /sciclone/home20/hmbaier/test_rpc/test.py

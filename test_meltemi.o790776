@@ -1,0 +1,30 @@
+Warning: no access to tty (Bad file descriptor).
+Thus no job control in this shell.
+======================================================
+Environment variables set by the agent on PID 104933:
+{'GROUP_RANK': '0',
+ 'LOCAL_RANK': '1',
+ 'MASTER_ADDR': 'mlt001.sciclone.wm.edu',
+ 'MASTER_PORT': '58134',
+ 'RANK': '1',
+ 'TORCHELASTIC_MAX_RESTARTS': '0',
+ 'TORCHELASTIC_RESTART_COUNT': '0',
+ 'WORLD_SIZE': '2'}
+======================================================
+
+======================================================
+Environment variables set by the agent on PID 104932:
+{'GROUP_RANK': '0',
+ 'LOCAL_RANK': '0',
+ 'MASTER_ADDR': 'mlt001.sciclone.wm.edu',
+ 'MASTER_PORT': '58134',
+ 'RANK': '0',
+ 'TORCHELASTIC_MAX_RESTARTS': '0',
+ 'TORCHELASTIC_RESTART_COUNT': '0',
+ 'WORLD_SIZE': '2'}
+======================================================
+
+On PID 104932, after init process group, rank=0, world_size = 2
+On PID 104933, after init process group, rank=1, world_size = 2
+
+

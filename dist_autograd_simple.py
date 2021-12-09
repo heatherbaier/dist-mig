@@ -121,7 +121,7 @@ class Observer:
     """
 
     def __init__(self):
-        
+
         self.id = rpc.get_worker_info().id
         self.env = gym.make('CartPole-v1')
         self.env.seed(args.seed)
@@ -212,15 +212,10 @@ class Agent:
         # If the random number is larger than eps_threshold, use the trained policy to pick an action
         if sample > self.eps_threshold:
             with torch.no_grad():
-                # t.max(1) will return largest column value of each row.
-                # second column on max result is index of where max element was
-                # found, so we pick action with the larger expected reward.
-                # print("Computed action!", self.eps_threshold)
                 return self.Policy(state)[0].max(1)[1].view(1, 1)
 
         # Otherwise, pick a random action
         else:
-            # print("Random action! Epsilon = ", self.eps_threshold)
             return torch.tensor([[random.randrange(self.n_actions)]], device = self.device, dtype = torch.long)
 
 
@@ -236,7 +231,7 @@ class Agent:
     def run_episode(self, n_steps=0):
 
         r"""
-        Run one episode. The agent will tell each oberser to run n_steps.
+        Run one episode. The agent will tell each observer to run n_steps.
         """
         
         futs = []
@@ -258,6 +253,7 @@ class Agent:
 
 
     def finish_episode(self):
+
         r"""
         This function is mostly borrowed from the Reinforcement Learning example.
         See https://github.com/pytorch/examples/tree/master/reinforcement_learning

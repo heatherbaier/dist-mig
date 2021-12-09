@@ -1,0 +1,13 @@
+#!/bin/tcsh
+#PBS -N test_meltemi
+#PBS -l nodes=2:meltemi:ppn=2
+#PBS -l walltime=1:00:00
+#PBS -j oe
+
+# init conda within new shell for job
+source "/usr/local/anaconda3-2021.05/etc/profile.d/conda.csh"
+module load anaconda3/2021.05
+unsetenv PYTHONPATH
+conda activate dhsrl4
+
+torchrun --nnodes=2 --nproc_per_node=2 --rdzv_id=790876 --rdzv_backend=c10d rdzv_endpoint=128.239.59.1:29500 --enable-v2 /sciclone/home20/hmbaier/test_rpc/test.py

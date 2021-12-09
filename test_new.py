@@ -1,4 +1,18 @@
-from mpi4py import MPI
+#!/usr/bin/env python3
+import io
+import os
+import pprint
+import sys
+
+import torch.distributed as dist
+
+from torch.distributed.elastic.multiprocessing.errors import record
+
+
+# @record
+# def main():
+#     print("in here!")
+
 
 import argparse
 import gym
@@ -155,16 +169,14 @@ class Observer:
                            num_channels = env_params[0], 
                            num_actions = env_params[1], 
                            display = env_params[2], 
-                           batch_size = env_params[3],
-                           GAMMA = env_params[4],
-                           EPS_START = env_params[5],
-                           EPS_END = env_params[6],
-                           EPS_DECAY = env_params[7],
-                           TARGET_UPDATE = env_params[8])
+                        #    batch_size = env_params[3],
+                           GAMMA = env_params[3],
+                           EPS_START = env_params[4],
+                           EPS_END = env_params[5],
+                           EPS_DECAY = env_params[6],
+                           TARGET_UPDATE = env_params[7])
 
             self.envs.append(env)
-
-        # print("TOTAL ENVS: ", len(self.envs))
 
 
     def run_episode(self, agent_rref, n_steps):
@@ -178,10 +190,10 @@ class Observer:
 
         print("RUNNING EPISDE IN OBSERVER: ", self.id)
 
-        for env in self.envs: # AKA: for image in batch: ...
+        # AKA: For each image in batch:
+        for env in self.envs:
 
-            print(env)
-
+            # Reset the environment
             state, ep_reward = env.reset(), 0
 
             for step in range(n_steps):
@@ -189,16 +201,31 @@ class Observer:
                 # send the state to the agent to get an action
                 action = _remote_method(Agent.select_action, agent_rref, self.id, state)
 
-                print("ACTION IN OBSERVER ", self.id, " IS ", action)
+                # If the action is a select:
+                # 1) Get the current state and information on the number of grabs thus far
+                # 2) Send that information to the Agent and make it calculate the reward
+                # 3) Send the new prediction back to the environment so she can update its information
+                if action == 4:
+                    print("ACTION IN OBSERVER ", self.id, " IS ", action)
+                    new_state, gv, y_val, prev_pred = env.select()
+                    new_pred = _remote_method(Agent.calculate_reward, agent_rref, self.id, action, None, new_state, gv, y_val, prev_pred)
+                    done = env.end_select(new_pred)
 
-                # apply the action to the environment, and get the reward
-                state, reward, done, _ = env.step(action)
+                    # If the agent is done, break the training
+                    if done:
+                        print("AGENT IS DONE: ", self.id)
+                        break
+                
+                # If the action is just a move...
+                # 1) Send the direction to the environment and get the new state back
+                # 3) Send the state information to the Agent so she can calculate the reward
+                # 4) Update the state to the new state
+                else:
+                    new_state, gv, y_val = env.move_box(action)
+                    _remote_method(Agent.calculate_reward, agent_rref, self.id, action, state, new_state, gv, y_val, None)
+                    state = new_state
 
-                # report the reward to the agent for training purpose
-                _remote_method(Agent.report_reward, agent_rref, self.id, reward)
 
-                if done:
-                    break
 
 
 class Agent:
@@ -245,6 +272,8 @@ class Agent:
         CAN GET THE LOADING STARTED ON ALL OBSERVERS SIMOUTANESOULY AND THEN WAIT FOR THEM ALL TO END
         """
 
+        print("In distribute data function!")
+
         futs = []
 
         for ob_rref in self.ob_rrefs:
@@ -257,8 +286,12 @@ class Agent:
                 )
             )
 
+        print("About to wait!")
+
         for fut in futs:
             fut.wait()
+
+        
 
 
     def load_data(self, world_size):
@@ -268,9 +301,11 @@ class Agent:
         TO-DO: THIS DOES NOT CURRENLTY LOAD IN THE WHOLE IMAGE (JUST A TUPLE THAT INCLUDES THE LIST OF PARAMETERS THE 
         OBSERVERS WILL NEED TO SET UP THE ENVIRONMENTS) SO ACTUALLY I TENTATIVELY THINK THIS MIGHT BE A FINE WAY TO DO THIS
         """
+
+        print("In load data!! WORLD SIZE: ", world_size)
             
         # Load in the data
-        data = Dataset(batch_size = 1,
+        data = Dataset(world_size = world_size,
                         num_workers = world_size,
                         imagery_dir = self.config.imagery_dir,
                         json_path = self.config.json_path,
@@ -279,6 +314,8 @@ class Agent:
 
 
         train_dl = data.train_data
+
+        print("Done with loading data!")
 
         return train_dl
 
@@ -323,6 +360,56 @@ class Agent:
         # Otherwise, pick a random action
         else:
             return torch.tensor([[random.randrange(self.n_actions)]], dtype = torch.long)
+
+
+    def calculate_reward(self, ob_id, action, old_state, new_state, gv, y_val, prev_pred):
+
+        """
+        Function recieves data from an observer, calculates the reward, and saves the information for later optimization
+        TO-DO: AFTER  YOU HAVE THE GRAB STEP DONE, NEED TO DO THE RECORDING OF THE REWARDS PER OBSERVER AND STUFF
+        """
+
+        # Grab
+        if action == 4:
+
+            # Run the new sequence through the model
+            if len(gv) == 0:
+                _, mig_pred, fc_layer = self.policy(new_state, seq = None, select = True)
+            else:
+                seq = torch.cat(gv, dim = 1)
+                _, mig_pred, fc_layer = self.policy(new_state, seq = seq, select = True)      
+
+            # If the sequence prediction is better with the new state than without, give the model a thumbs up
+            if abs(y_val - prev_pred) > abs(y_val - mig_pred):
+                reward = 10
+            else:
+                reward = 0
+
+            # Send the new prediction back to the observer for its own records
+            return mig_pred
+
+        # Move
+        else:
+
+            # Run the previous state through the model
+            if len(gv) == 0:
+                _, mig_pred_t1 = self.policy(old_state, seq = None)
+            else:
+                seq = torch.cat(gv, dim = 1)
+                _, mig_pred_t1 = self.policy(old_state, seq = seq)
+
+            # Run the new state through the model
+            if len(gv) == 0:
+                _, mig_pred_t2 = self.policy(new_state, seq = None)
+            else:
+                seq = torch.cat(gv, dim = 1)
+                _, mig_pred_t2 = self.policy(new_state, seq = seq)
+
+            # If the image after the view box shift is closer to the true value than before, give the model a pat on the back
+            if abs(y_val - mig_pred_t1) > abs(y_val - mig_pred_t2):
+                reward = 10
+            else:
+                reward = 0        
 
 
     def report_reward(self, ob_id, reward):
@@ -397,7 +484,7 @@ class Agent:
 
 
 
-
+@record
 def run_worker(rank, world_size):
 
     r"""
@@ -405,22 +492,8 @@ def run_worker(rank, world_size):
     other ranks are observers.
     """
 
-    import socket
-
-    print("HOSTNAME: ", socket.gethostname())
-
-    if rank == 0:
-        hn = socket.gethostbyname()
-    else:
-        hn = None
-    
-    comm = MPI.COMM_WORLD
-    comm.bcast(hn, root = 0)
-
-    os.environ['MASTER_ADDR'] = str(hn)
-    os.environ['MASTER_PORT'] = '29515'
-    os.environ['GLOO_SOCKET_IFNAME'] = "eno1"
-    os.environ['TP_SOCKET_IFNAME'] = "eno1"
+    # os.environ['GLOO_SOCKET_IFNAME'] = "ib0"
+    os.environ['TP_SOCKET_IFNAME'] = "ib0"
 
     config, _ = get_config()
 
@@ -429,18 +502,24 @@ def run_worker(rank, world_size):
     # Rank 0 is the agent
     if rank == 0:
 
-        print("RANK: ", rank)
+        # print("RANK IF: ", rank)
 
         # Set up remote protocol on core
-        rpc.init_rpc(AGENT_NAME, rank = rank, world_size = world_size)
+        # rpc.init_rpc(AGENT_NAME, rank = rank, world_size = world_size)
+
+        rpc.init_rpc(AGENT_NAME, rank = rank, world_size = world_size, rpc_backend_options = rpc.TensorPipeRpcBackendOptions(_transports=["uv"], rpc_timeout=500))
+
+        print("AGENT RPC INITIALIZED!")
 
         # Initialize the agent in rank 0
         agent = Agent(world_size, config)
 
         # i_episode? I think this is equivalent to epochs
-        for i_episode in count(1):
+        for i_episode in range(1):
 
-            n_steps = int(TOTAL_EPISODE_STEP / (args.world_size - 1))
+            print("EPISODE: ", i_episode)
+
+            n_steps = int(TOTAL_EPISODE_STEP / (int(os.environ['WORLD_SIZE']) - 1))
 
             # So here we would itereate over batches (i think...)
 
@@ -460,30 +539,74 @@ def run_worker(rank, world_size):
     # All other ranks are observers
     else:
 
-        print("RANK: ", rank)
+        # print("RANK ELSE: ", rank)
 
         # Set up remote protocol on core
-        rpc.init_rpc(OBSERVER_NAME.format(rank), rank = rank, world_size = world_size)
+        rpc.init_rpc(OBSERVER_NAME.format(rank), rank = rank, world_size = world_size, rpc_backend_options = rpc.TensorPipeRpcBackendOptions(_transports=["uv"], rpc_timeout=500))
+
+        print("OBSERVER RPC INITIALIZED!")
+
 
         # observers passively waiting for instructions from agents
 
     rpc.shutdown()
 
 
+
 def main():
 
-    mp.spawn(
-        run_worker,
-        args = (args.world_size, ),
-        nprocs = args.world_size,
-        join = True
+    run_worker(dist.get_rank(), dist.get_world_size())
+
+    # mp.spawn(
+    #     run_worker,
+    #     args = (args.world_size, ),
+    #     nprocs = args.world_size,
+    #     join = True
+    # )
+
+
+if __name__ == "__main__":
+
+    print("here!")
+
+    # main()
+
+    # os.environ['OMP_NUM_THREADS'] = 20
+
+    env_dict = {
+        k: os.environ[k]
+        for k in (
+            "LOCAL_RANK",
+            "RANK",
+            "GROUP_RANK",
+            "WORLD_SIZE",
+            "MASTER_ADDR",
+            "MASTER_PORT",
+            "TORCHELASTIC_RESTART_COUNT",
+            "TORCHELASTIC_MAX_RESTARTS",
+        )
+    }
+
+    with io.StringIO() as buff:
+        print("======================================================", file=buff)
+        print(
+            f"Environment variables set by the agent on PID {os.getpid()}:", file=buff
+        )
+        pprint.pprint(env_dict, stream=buff)
+        print("======================================================", file=buff)
+        print(buff.getvalue())
+        sys.stdout.flush()
+
+    dist.init_process_group(backend="gloo")
+    dist.barrier()
+
+    print(
+        (
+            f"On PID {os.getpid()}, after init process group, "
+            f"rank={dist.get_rank()}, world_size = {dist.get_world_size()}\n"
+        )
     )
 
 
-if __name__ == '__main__':
-
     main()
-
-
-
 

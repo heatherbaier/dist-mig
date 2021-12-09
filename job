@@ -1,6 +1,6 @@
 #!/bin/tcsh
 #PBS -N test_rpc
-#PBS -l nodes=4:vortex:ppn=1
+#PBS -l nodes=2:vortex:ppn=2
 #PBS -l walltime=1:00:00
 
 # init conda within new shell for job

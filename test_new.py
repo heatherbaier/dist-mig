@@ -1,38 +1,25 @@
 #!/usr/bin/env python3
-import io
-import os
-import pprint
-import sys
-
-import torch.distributed as dist
-
 from torch.distributed.elastic.multiprocessing.errors import record
-
-
-# @record
-# def main():
-#     print("in here!")
-
-
-import argparse
-import gym
-import numpy as np
-import os
-from itertools import count
-
-import torch
-import torch.distributed.rpc as rpc
-import torch.multiprocessing as mp
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
 from torch.distributed.rpc import RRef, rpc_sync, rpc_async, remote
 from torch.distributions import Categorical
+import torch.autograd.profiler as profiler
+import torch.distributed.rpc as rpc
 import torch.distributed as dist
+import torch.nn.functional as F
+import torch.optim as optim
+import torch.nn as nn
+import numpy as np
+import argparse
+import pprint
+import torch
+import sys
+import io
+import os
 
 from config import get_config
 from dataloader import *
 from earth_env import *
+from utils import *
 
 
 TOTAL_EPISODE_STEP = 5000
@@ -143,12 +130,13 @@ class Observer:
     def __init__(self):
 
         self.id = rpc.get_worker_info().id
+        self.train_envs, self.val_envs = [], []
 
-        print("Observer with ID: ", self.id)
-        print("WORKER INFO: ", rpc.get_worker_info())
+        with open("/sciclone/home20/hmbaier/test_rpc/claw_log.txt", "a") as f:
+            f.write("Observer with ID: " + str(self.id) + "\n" + "WORKER INFO: " + str(rpc.get_worker_info()))               
 
 
-    def load_data(self, data):
+    def load_data(self, data, validation):
 
         """
         Here we recieve an asynchrous call from the Agent with a list of training data batches. Select just 
@@ -158,28 +146,38 @@ class Observer:
 
         self.data = data[self.id - 1]
 
-        print("IMAGE LOADED IN OBSERVER: ", self.id, self.data[0][0])
-
-        self.envs = []
+        with open("/sciclone/home20/hmbaier/test_rpc/claw_log.txt", "a") as f:
+            f.write("NUMBER OF IMAGES IN OBSERVER " + str(self.id) + ": " + str(len(self.data)) + "\n")
 
         for (impath, y, env_params) in self.data:
 
-            env = EarthObs(impath = impath,
-                           y_val = y,
-                           num_channels = env_params[0], 
-                           num_actions = env_params[1], 
-                           display = env_params[2], 
-                        #    batch_size = env_params[3],
-                           GAMMA = env_params[3],
-                           EPS_START = env_params[4],
-                           EPS_END = env_params[5],
-                           EPS_DECAY = env_params[6],
-                           TARGET_UPDATE = env_params[7])
+            try:
 
-            self.envs.append(env)
+                env = EarthObs(impath = impath,
+                            y_val = y,
+                            num_channels = env_params[0], 
+                            num_actions = env_params[1], 
+                            display = env_params[2], 
+                            GAMMA = env_params[3],
+                            EPS_START = env_params[4],
+                            EPS_END = env_params[5],
+                            EPS_DECAY = env_params[6],
+                            TARGET_UPDATE = env_params[7],
+                            validation = validation)
+
+                if validation:
+                    self.train_envs.append(env)
+                else:
+                    self.val_envs.append(env)
 
 
-    def run_episode(self, agent_rref, n_steps):
+            except:
+
+                with open("/sciclone/home20/hmbaier/test_rpc/claw_log.txt", "a") as f:
+                    f.write("TRIED BUT COULDN'T LOAD IMAGE: " + str(impath) + "\n")
+
+
+    def run_episode(self, agent_rref, n_steps, validation):
 
         r"""
         Run one episode of n_steps.
@@ -188,43 +186,47 @@ class Observer:
             n_steps (int): number of steps in this episode
         """
 
-        print("RUNNING EPISDE IN OBSERVER: ", self.id)
+        with open("/sciclone/home20/hmbaier/test_rpc/claw_log.txt", "a") as f:
+            f.write("RUNNING EPISDE IN OBSERVER: " + str(self.id) + "\n")
+
+        if validation:
+            batch = self.train_envs
+        else:
+            batch = self.val_envs
 
         # AKA: For each image in batch:
-        for env in self.envs:
+        for env in batch:
+
+            print(env.impath)
 
             # Reset the environment
             state, ep_reward = env.reset(), 0
+            done = False
 
-            for step in range(n_steps):
+            while not done:
 
                 # send the state to the agent to get an action
-                action = _remote_method(Agent.select_action, agent_rref, self.id, state)
+                action = _remote_method(Agent.select_action, agent_rref, state)
 
                 # If the action is a select:
                 # 1) Get the current state and information on the number of grabs thus far
                 # 2) Send that information to the Agent and make it calculate the reward
                 # 3) Send the new prediction back to the environment so she can update its information
                 if action == 4:
-                    # print("ACTION IN OBSERVER ", self.id, " IS ", action)
                     new_state, gv, y_val, prev_pred = env.select()
-                    new_pred, fc_layer = _remote_method(Agent.calculate_reward, agent_rref, self.id, action, None, new_state, gv, y_val, prev_pred)
+                    new_pred, fc_layer = _remote_method(Agent.calculate_reward, agent_rref, env.impath, action, None, new_state, gv, y_val, prev_pred, env.validation)
                     done = env.end_select(new_pred, fc_layer)
 
-                    # If the agent is done, break the training
-                    if done:
-                        # print("AGENT IS DONE: ", self.id)
-                        break
-                
                 # If the action is just a move...
                 # 1) Send the direction to the environment and get the new state back
                 # 3) Send the state information to the Agent so she can calculate the reward
                 # 4) Update the state to the new state
                 else:
                     new_state, gv, y_val = env.move_box(action)
-                    _remote_method(Agent.calculate_reward, agent_rref, self.id, action, state, new_state, gv, y_val, None)
+                    _remote_method(Agent.calculate_reward, agent_rref, env.impath, action, state, new_state, gv, y_val, None, env.validation)
                     state = new_state
 
+            _remote_method(Agent.finish_episode, agent_rref, self.id)
 
 
 
@@ -243,18 +245,18 @@ class Agent:
         self.criterion = nn.L1Loss()
         self.eps = np.finfo(np.float32).eps.item()
         self.running_reward = 0
-        self.reward_threshold = gym.make('CartPole-v1').spec.reward_threshold
+        # self.reward_threshold = gym.make('CartPole-v1').spec.reward_threshold
         self.config = config
         self.steps_done = 0
         self.eps_threshold = .9
         self.memory = []
         self.limit = 1000
         self.to_tens = transforms.ToTensor()
-
-        # self.config, _ = get_config()
+        self.preds_record, self.done_tracker = {}, {}
+        self.world_size = world_size
 
         # Load all of the data into the Agent on Rank 0
-        self.train_dl = self.load_data(world_size)
+        self.train_dl, self.val_dl = self.load_data(world_size)
 
         # For each of the observers in the remote world, set up their information in the agent
         for ob_rank in range(1, world_size):
@@ -263,13 +265,12 @@ class Agent:
             self.rewards[ob_info.id] = []
             self.saved_log_probs[ob_info.id] = []
 
-        print("TRAINING DATA: ", self.train_dl)
-
         # Make an RPC call to distribute a data batch to each of the Observers
-        self.distribute_data()
+        self.distribute_data(self.train_dl, validation = False)
+        self.distribute_data(self.val_dl, validation = True)
 
 
-    def distribute_data(self):
+    def distribute_data(self, data, validation = False):
 
         """
         TO-DO: FOR NOW THIS IS A BLOCKING SYNC CALL SINCE WE NEED THE IMAGE TO BE LOADED IN ORDER TO 
@@ -277,9 +278,12 @@ class Agent:
         CAN GET THE LOADING STARTED ON ALL OBSERVERS SIMOUTANESOULY AND THEN WAIT FOR THEM ALL TO END
         """
 
-        print("In distribute data function!")
+        with open("/sciclone/home20/hmbaier/test_rpc/claw_log.txt", "a") as f:
+            f.write("In distribute data function!" + "\n")
 
         futs = []
+
+        # with profiler.profile() as prof:
 
         for ob_rref in self.ob_rrefs:
 
@@ -287,27 +291,35 @@ class Agent:
                 rpc_async(
                     ob_rref.owner(),
                     _call_method,
-                    args = (Observer.load_data, ob_rref, self.train_dl)
+                    args = (Observer.load_data, ob_rref, data, validation)
                 )
             )
 
-        print("About to wait!")
+        with open("/sciclone/home20/hmbaier/test_rpc/claw_log.txt", "a") as f:
+            f.write("About to wait!" + "\n")
 
         for fut in futs:
             fut.wait()
 
-        
+        # print(prof.key_averages().table())
+
+
+        # trace_file = "/sciclone/home20/hmbaier/test_rpc/trace_nproc33.json"
+        # Export the trace.
+        # prof.export_chrome_trace(trace_file)
+        # logger.debug(f"Wrote trace to {trace_file}")
 
 
     def load_data(self, world_size):
 
         """
         Function to load in the data on the Agent
-        TO-DO: THIS DOES NOT CURRENLTY LOAD IN THE WHOLE IMAGE (JUST A TUPLE THAT INCLUDES THE LIST OF PARAMETERS THE 
+        TO-DO: THIS DOES NOT CURRENTLY LOAD IN THE WHOLE IMAGE (JUST A TUPLE THAT INCLUDES THE LIST OF PARAMETERS THE 
         OBSERVERS WILL NEED TO SET UP THE ENVIRONMENTS) SO ACTUALLY I TENTATIVELY THINK THIS MIGHT BE A FINE WAY TO DO THIS
         """
 
-        print("In load data!! WORLD SIZE: ", world_size)
+        with open("/sciclone/home20/hmbaier/test_rpc/claw_log.txt", "a") as f:
+            f.write("In load data!! WORLD SIZE: " + str(world_size) + "\n")
             
         # Load in the data
         data = Dataset(world_size = world_size,
@@ -317,17 +329,23 @@ class Agent:
                         split = self.config.tv_split,
                         eps_decay = self.config.eps_decay)
 
+        # self.limit = len(data.data)
 
         train_dl = data.train_data
-        self.batch_size = data.batch_size
+        val_dl = data.val_data
+        self.batch_size = world_size
         self.GAMMA = data.gamma
 
-        print("Done with loading data!")
+        with open("/sciclone/home20/hmbaier/test_rpc/claw_log.txt", "a") as f:
+            f.write("NUMBER OF VALIDATION DATA: " + str(len(train_dl)) + "\n")
 
-        return train_dl
+        with open("/sciclone/home20/hmbaier/test_rpc/claw_log.txt", "a") as f:
+            f.write("NUMBER OF VALIDATION DATA: " + str(len(val_dl)) + "\n")
+
+        return train_dl, val_dl
 
 
-    def select_action(self, ob_id, state):
+    def select_action(self, state):
         
         r"""
         This function is mostly borrowed from the Reinforcement Learning example.
@@ -342,16 +360,6 @@ class Agent:
         TO DO: READ THE MESSAGE ABOVE AND DO THE DICTIONARY THING!!!!
         """
 
-        # state = torch.from_numpy(state).float().unsqueeze(0)
-        # probs = self.policy(state)
-        # m = Categorical(probs)
-        # action = m.sample()
-        # self.saved_log_probs[ob_id].append(m.log_prob(action))
-        # return action.item()
-
-        # Read in the image and convert it to a tensor
-        # state = self.to_tens(self.view_box.clip_image(self.image)).unsqueeze(0)
-        
         # Get a random number between 0 & 1
         sample = random.random()
 
@@ -369,7 +377,7 @@ class Agent:
             return torch.tensor([[random.randrange(self.n_actions)]], dtype = torch.long)
 
 
-    def calculate_reward(self, ob_id, action, old_state, new_state, gv, y_val, prev_pred):
+    def calculate_reward(self, ob_id, action, old_state, new_state, gv, y_val, prev_pred, validation):
 
         """
         Function recieves data from an observer, calculates the reward, and saves the information for later optimization
@@ -386,26 +394,26 @@ class Agent:
                 seq = torch.cat(gv, dim = 1)
                 _, mig_pred, fc_layer = self.policy(new_state, seq = seq, select = True)    
 
-            try:
-                # print("OPTIMIZING PRED! ", mig_pred)
-                # print(mig_pred.shape, y_val.shape)
-                mig_loss = self.criterion(mig_pred.squeeze(), y_val)
-                # print("MIG LOSS: ", mig_loss)
-                self.optimizer.zero_grad()
-                mig_loss.backward()
-                self.optimizer.step()
-            except:
-                pass
 
-            # self.optimize_pred(mig_pred, y_val)
+            if not validation:
 
-            print("MIG PRED: ", mig_pred)
+                try:
+                    mig_loss = self.criterion(mig_pred.squeeze(), y_val)
+                    self.optimizer.zero_grad()
+                    mig_loss.backward()
+                    self.optimizer.step()
+                except:
+                    pass
 
+            print("MIG PRED: ", str(mig_pred), "\n")
+          
             # If the sequence prediction is better with the new state than without, give the model a thumbs up
             if abs(y_val - prev_pred) > abs(y_val - mig_pred):
                 reward = 10
             else:
                 reward = 0
+
+            self.preds_record[ob_id] = [mig_pred.item(), y_val]
 
             # Send the new prediction back to the observer for its own records
             return mig_pred, fc_layer
@@ -433,8 +441,10 @@ class Agent:
             else:
                 reward = 0       
 
-            memory = (old_state, action, new_state, torch.tensor([reward])) 
-            self.memory.append(memory)
+            if not validation:
+
+                memory = (old_state, action, new_state, torch.tensor([reward])) 
+                self.memory.append(memory)
 
 
     # def optimize_pred(self, mig_pred, y_val):
@@ -454,11 +464,13 @@ class Agent:
 
         self.rewards[ob_id].append(reward)
 
-    def run_episode(self, n_steps = 5):
+    def run_episode(self, n_steps = 5, validation = False):
 
         r"""
-        Run one episode. The agent will tell each oberser to run n_steps.
+        Run one episode. The agent will tell each observer to run n_steps.
         """
+
+        self.preds_record = {}
 
         futs = []
 
@@ -469,7 +481,7 @@ class Agent:
                 rpc_async(
                     ob_rref.owner(),
                     _call_method,
-                    args = (Observer.run_episode, ob_rref, self.agent_rref, n_steps)
+                    args = (Observer.run_episode, ob_rref, self.agent_rref, n_steps, validation)
                 )
             )
 
@@ -531,44 +543,17 @@ class Agent:
         self.optimizer.step()
 
 
-    def finish_episode(self):
-        r"""
-        This function is mostly borrowed from the Reinforcement Learning example.
-        See https://github.com/pytorch/examples/tree/master/reinforcement_learning
-        The main difference is that it joins all probs and rewards from
-        different observers into one list, and uses the minimum observer rewards
-        as the reward of the current episode.
-        """
+    def finish_episode(self, ob_id):
+        self.done_tracker[ob_id] = 1
 
-        # joins probs and rewards from different observers into lists
-        R, probs, rewards = 0, [], []
-        for ob_id in self.rewards:
-            probs.extend(self.saved_log_probs[ob_id])
-            rewards.extend(self.rewards[ob_id])
 
-        # use the minimum observer reward to calculate the running reward
-        min_reward = min([sum(self.rewards[ob_id]) for ob_id in self.rewards])
-        self.running_reward = 0.05 * min_reward + (1 - 0.05) * self.running_reward
 
-        # clear saved probs and rewards
-        for ob_id in self.rewards:
-            self.rewards[ob_id] = []
-            self.saved_log_probs[ob_id] = []
-
-        policy_loss, returns = [], []
-        for r in rewards[::-1]:
-            R = r + args.gamma * R
-            returns.insert(0, R)
-        returns = torch.tensor(returns)
-        returns = (returns - returns.mean()) / (returns.std() + self.eps)
-        for log_prob, R in zip(probs, returns):
-            policy_loss.append(-log_prob * R)
-        self.optimizer.zero_grad()
-        policy_loss = torch.cat(policy_loss).sum()
-        policy_loss.backward()
-        self.optimizer.step()
-        return min_reward
-
+def calc_mae(inp):
+    for_mae = np.array(list(inp))
+    trues = for_mae[:, 0]
+    preds = for_mae[:, 1]
+    mae = np.mean(np.abs(trues - preds)) 
+    return mae
 
 
 @record
@@ -589,56 +574,43 @@ def run_worker(rank, world_size):
     # Rank 0 is the agent
     if rank == 0:
 
-        # print("RANK IF: ", rank)
-
         # Set up remote protocol on core
         # rpc.init_rpc(AGENT_NAME, rank = rank, world_size = world_size)
 
-        rpc.init_rpc(AGENT_NAME, rank = rank, world_size = world_size, rpc_backend_options = rpc.TensorPipeRpcBackendOptions(_transports=["uv"], rpc_timeout=500))
+        rpc.init_rpc(AGENT_NAME, rank = rank, world_size = world_size, rpc_backend_options = rpc.TensorPipeRpcBackendOptions(_transports=["uv"], rpc_timeout=5000))
 
-        print("AGENT RPC INITIALIZED!")
+        with open("/sciclone/home20/hmbaier/test_rpc/claw_log.txt", "a") as f:
+            f.write("AGENT RPC INITIALIZED!" + "\n")        
 
         # Initialize the agent in rank 0
         agent = Agent(world_size, config)
 
         # i_episode? I think this is equivalent to epochs
-        for i_episode in range(20):
+        for i_episode in range(10):
 
-            print("EPISODE: ", i_episode)
-
-            n_steps = int(TOTAL_EPISODE_STEP / (int(os.environ['WORLD_SIZE']) - 1))
-
-            # So here we would itereate over batches (i think...)
+            # n_steps = int(TOTAL_EPISODE_STEP / (int(os.environ['WORLD_SIZE']) - 1))
 
             # Run epsiode is basically 1 call of 'train'
-            agent.run_episode(n_steps = n_steps)
-
-            print("ABOUT TO OPTIMIZE!")
-
+            agent.run_episode(n_steps = 1, validation = False)
             agent.optimize_model()
+            train_mae = calc_mae(agent.preds_record.values())
 
-        #     last_reward = agent.finish_episode()
+            agent.run_episode(n_steps = 1, validation = True)
+            val_mae = calc_mae(agent.preds_record.values())
 
-        #     if i_episode % args.log_interval == 0:
-        #         print('Episode {}\tLast reward: {:.2f}\tAverage reward: {:.2f}'.format(
-        #               i_episode, last_reward, agent.running_reward))
+            with open("/sciclone/home20/hmbaier/test_rpc/claw_pred_log.txt", "a") as f:
+                f.write("EPOCH " + str(i_episode) + "\n" + "Training MAE: " + str(train_mae) + "\n" + "Validation MAE: " + str(val_mae) + "\n")
+                           
 
-        #     if agent.running_reward > agent.reward_threshold:
-        #         print("Solved! Running reward is now {}!".format(agent.running_reward))
-        #         break
 
-    # All other ranks are observers
+    # All other ranks are observers who are passively waiting for instructions from agents
     else:
 
-        # print("RANK ELSE: ", rank)
-
         # Set up remote protocol on core
-        rpc.init_rpc(OBSERVER_NAME.format(rank), rank = rank, world_size = world_size, rpc_backend_options = rpc.TensorPipeRpcBackendOptions(_transports=["uv"], rpc_timeout=500))
+        rpc.init_rpc(OBSERVER_NAME.format(rank), rank = rank, world_size = world_size, rpc_backend_options = rpc.TensorPipeRpcBackendOptions(_transports=["uv"], rpc_timeout=5000))
 
-        print("OBSERVER RPC INITIALIZED!")
-
-
-        # observers passively waiting for instructions from agents
+        with open("/sciclone/home20/hmbaier/test_rpc/claw_log.txt", "a") as f:
+            f.write("OBSERVER RPC INITIALIZED!" + "\n")            
 
     rpc.shutdown()
 
@@ -648,21 +620,16 @@ def main():
 
     run_worker(dist.get_rank(), dist.get_world_size())
 
-    # mp.spawn(
-    #     run_worker,
-    #     args = (args.world_size, ),
-    #     nprocs = args.world_size,
-    #     join = True
-    # )
-
 
 if __name__ == "__main__":
+
+    os.environ["OMP_NUM_THREADS"] = '24'
 
     print("here!")
 
     # main()
 
-    # os.environ['OMP_NUM_THREADS'] = 20
+    # os.environ['OMP_NUM_THREADS'] = '24'
 
     env_dict = {
         k: os.environ[k]
@@ -698,6 +665,11 @@ if __name__ == "__main__":
         )
     )
 
+    if os.path.isfile("/sciclone/home20/hmbaier/test_rpc/claw_log.txt"):
+        os.remove("/sciclone/home20/hmbaier/test_rpc/claw_log.txt")
+    
+    if os.path.isfile("/sciclone/home20/hmbaier/test_rpc/claw_pred_log.txt"):
+        os.remove("/sciclone/home20/hmbaier/test_rpc/claw_pred_log.txt")
 
     main()
 

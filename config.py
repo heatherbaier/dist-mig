@@ -18,7 +18,7 @@ training_args.add_argument("--batch_size",
                            help = "batch size is equivalent to number of process to run asychronously / nodes * ppn")
 training_args.add_argument("--tv_split", 
                            type = float, 
-                           default = 1, 
+                           default = .75, 
                            help = "Train/Val split percentage - given as a float i.e. .75")
 training_args.add_argument("--n_epochs", 
                            type = int, 

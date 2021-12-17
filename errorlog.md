@@ -66,3 +66,9 @@ rpc.init_rpc(AGENT_NAME, rank = rank, world_size = world_size, rpc_backend_optio
 ```
 **LINKS:**
     1. https://issueexplorer.com/issue/pytorch/tensorpipe/413  
+
+
+
+- #### Adress Already in Use when using high number of ppn on Meltemi
+**ERROR:** RuntimeError: [/opt/conda/conda-bld/pytorch_1634272107467/work/third_party/gloo/gloo/transport/tcp/pair.cc:185] listen: Address already in use  
+**REASON:**

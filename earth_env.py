@@ -32,7 +32,8 @@ class EarthObs(Env):
                 EPS_START = .9,
                 EPS_END = 0.05,
                 EPS_DECAY = 200,
-                TARGET_UPDATE = 10):
+                TARGET_UPDATE = 10,
+                validation = False):
 
 
         super(EarthObs, self).__init__()
@@ -54,6 +55,7 @@ class EarthObs(Env):
         self.y_val = torch.tensor(y_val)
         self.error = 0
         self.mig_pred = 0
+        self.validation = validation
 
         self.to_tens = transforms.ToTensor()
 
@@ -79,6 +81,7 @@ class EarthObs(Env):
         # self.comm = MPI.COMM_WORLD
 
         self.load_image()
+
 
 
     def load_image(self):
@@ -310,6 +313,9 @@ class EarthObs(Env):
         self.mig_pred = new_pred.item()
         self.grab_vectors.append(fc_layer.detach())
 
+        with open("/sciclone/home20/hmbaier/test_rpc/claw_grabs_log.txt", "a") as f:
+            f.write("GRABS LEFT: " + str(self.grabs_left) + "\n")    
+
         # If there are no grabs left, update the canvas with this steps results, set the done flag to True & return 
         if self.grabs_left == 0:
             return True
@@ -317,6 +323,7 @@ class EarthObs(Env):
         else:
             self.first_grab = False
             return False
+
 
     def move_box(self, action):
 

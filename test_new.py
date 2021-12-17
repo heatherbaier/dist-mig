@@ -60,6 +60,17 @@ def _remote_method(method, rref, *args, **kwargs):
     return rpc_sync(rref.owner(), _call_method, args = args, kwargs = kwargs)
 
 
+def _remote_method_async(method, rref, *args, **kwargs):
+
+    r"""
+    a helper function to run method on the owner of rref and fetch back the
+    result using RPC
+    """
+
+    args = [method, rref] + list(args)
+    return remote(rref.owner(), _call_method, args = args, kwargs = kwargs)
+
+
 class Policy(nn.Module):
 
     r"""
@@ -223,7 +234,7 @@ class Observer:
                 # 4) Update the state to the new state
                 else:
                     new_state, gv, y_val = env.move_box(action)
-                    _remote_method(Agent.calculate_reward, agent_rref, env.impath, action, state, new_state, gv, y_val, None, env.validation)
+                    _remote_method_async(Agent.calculate_reward, agent_rref, env.impath, action, state, new_state, gv, y_val, None, env.validation)
                     state = new_state
 
             _remote_method(Agent.finish_episode, agent_rref, self.id)
